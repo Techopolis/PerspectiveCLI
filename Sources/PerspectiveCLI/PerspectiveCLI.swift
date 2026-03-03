@@ -252,6 +252,31 @@ actor CLIApp {
             printSuccess("Tools disabled")
             await reinitializeActiveBackend()
 
+        case "/temperature":
+            let temp: Float = switch activeBackend {
+            case .fm: await fmBackend.getTemperature()
+            case .mlx: await mlxBackend.getTemperature()
+            }
+            printInfo("Temperature: \(temp)")
+
+        case _ where cmd.hasPrefix("/temperature "):
+            let value = String(command.dropFirst("/temperature ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let maxTemp: Float = activeBackend == .fm ? 1.0 : 2.0
+            if let temp = Float(value), temp >= 0.0, temp <= maxTemp {
+                switch activeBackend {
+                case .fm:
+                    await fmBackend.setTemperature(temp)
+                case .mlx:
+                    await mlxBackend.setTemperature(temp)
+                    printInfo("Reinitializing session...")
+                    await reinitializeActiveBackend()
+                }
+                printSuccess("Temperature set to \(temp)")
+            } else {
+                printWarning("Invalid temperature. Use a value between 0.0 and \(maxTemp)")
+            }
+
         case "/help", "/?":
             printHelp()
 
@@ -350,6 +375,7 @@ func printHelp() {
     printInfo("  /system           - Show current custom system prompt")
     printInfo("  /system default   - Show the built-in default system prompt")
     printInfo("  /system clear     - Clear custom system prompt")
+    printInfo("  /temperature <n>  - Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0)")
     printInfo("  /stream           - Toggle streaming (FM only)")
     printInfo("  /tools            - Show tool status and list")
     printInfo("  /tools enable     - Enable tool calling (FM only)")

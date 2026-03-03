@@ -18,6 +18,7 @@ actor MLXBackend {
     private var container: ModelContainer?
     private var session: ChatSession?
     private var modelId: String = "mlx-community/gemma-3-1b-it-qat-4bit"
+    private var temperature: Float = 0.7
     private let conversation = CLIConversation()
 
     // MARK: - Configuration
@@ -28,6 +29,14 @@ actor MLXBackend {
 
     func getModelId() -> String {
         return modelId
+    }
+
+    func setTemperature(_ value: Float) {
+        temperature = value
+    }
+
+    func getTemperature() -> Float {
+        return temperature
     }
 
     // MARK: - Initialization
@@ -57,7 +66,7 @@ actor MLXBackend {
         self.session = ChatSession(
             container,
             instructions: instructions,
-            generateParameters: GenerateParameters(temperature: 0.7)
+            generateParameters: GenerateParameters(temperature: temperature)
         )
     }
 

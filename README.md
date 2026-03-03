@@ -37,6 +37,7 @@ Type messages to chat. Use slash commands to control the CLI:
 | `/fm` | Switch to Foundation Models backend |
 | `/mlx` | Switch to MLX backend |
 | `/mlx-model <id>` | Set MLX model (e.g. `mlx-community/gemma-3-4b-it-4bit`) |
+| `/temperature <n>` | Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0, default: 0.7) |
 | `/stream` | Toggle streaming (FM only) |
 | `/reset` | Reset conversation |
 

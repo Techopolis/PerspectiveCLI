@@ -16,6 +16,8 @@ actor FoundationModelsBackend {
     private var session: LanguageModelSession?
     private let conversation = CLIConversation()
     private var streamingEnabled = true
+    private var temperature: Double = 0.7
+    private var generationOptions: GenerationOptions { GenerationOptions(temperature: temperature) }
 
     // MARK: - Initialization
 
@@ -71,7 +73,7 @@ actor FoundationModelsBackend {
         }
 
         conversation.addUserMessage(message)
-        let response = try await session.respond(to: message)
+        let response = try await session.respond(to: message, options: generationOptions)
         let text = response.content
         conversation.addAssistantMessage(text)
         return text
@@ -90,7 +92,7 @@ actor FoundationModelsBackend {
             Task {
                 do {
                     var fullResponse = ""
-                    let stream = session.streamResponse(to: message)
+                    let stream = session.streamResponse(to: message, options: self.generationOptions)
                     for try await partial in stream {
                         let text = partial.content
                         continuation.yield(text)
@@ -111,6 +113,14 @@ actor FoundationModelsBackend {
     func toggleStreaming() -> Bool {
         streamingEnabled.toggle()
         return streamingEnabled
+    }
+
+    func setTemperature(_ value: Float) {
+        temperature = Double(value)
+    }
+
+    func getTemperature() -> Float {
+        return Float(temperature)
     }
 
     // MARK: - Session Management
