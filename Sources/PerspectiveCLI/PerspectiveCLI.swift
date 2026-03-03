@@ -1,0 +1,376 @@
+// PerspectiveCLI.swift
+// PerspectiveCLI
+//
+// Open-source CLI for running Apple Foundation Models and MLX models
+// with extensible tool support.
+//
+// Copyright (c) 2026 Michael Doise
+// Licensed under the MIT License. See LICENSE file for details.
+
+import Foundation
+import FoundationModels
+
+// MARK: - Entry Point
+
+@main
+struct PerspectiveCLI {
+    static func main() async {
+        await CLIApp.shared.run()
+    }
+}
+
+// MARK: - Error Types
+
+enum CLIError: LocalizedError {
+    case sessionNotInitialized
+    case backendUnavailable(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .sessionNotInitialized:
+            return "Session not initialized. Try /reset to reinitialize."
+        case .backendUnavailable(let reason):
+            return "Backend unavailable: \(reason)"
+        }
+    }
+}
+
+// MARK: - Backend Selection
+
+enum Backend: String {
+    case fm = "FM"
+    case mlx = "MLX"
+}
+
+// MARK: - Main CLI Application
+
+actor CLIApp {
+    static let shared = CLIApp()
+
+    private let fmBackend = FoundationModelsBackend()
+    private let mlxBackend = MLXBackend()
+
+    private var activeBackend: Backend = .fm
+    private var isRunning = true
+    private var customSystemPrompt: String? = nil
+    private var toolsEnabled = false
+
+    private init() {}
+
+    func run() async {
+        printWelcome()
+
+        // Check Foundation Models availability
+        let (fmAvailable, fmMessage) = FoundationModelsBackend.checkAvailability()
+        if fmAvailable {
+            printSuccess(fmMessage)
+        } else {
+            printError(fmMessage)
+            printInfo("Foundation Models require macOS 26+ with Apple Silicon.")
+            printInfo("You can still use MLX mode with /mlx")
+        }
+
+        // Initialize FM backend if available
+        if fmAvailable {
+            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+            printSuccess("FM session initialized")
+        }
+
+        printHelp()
+        print("")
+
+        // Main chat loop
+        while isRunning {
+            // Show prompt based on active backend
+            switch activeBackend {
+            case .fm:
+                print("\u{001B}[94m[FM] You:\u{001B}[0m ", terminator: "")
+            case .mlx:
+                let modelShort = await mlxBackend.getModelId().components(separatedBy: "/").last ?? "MLX"
+                print("\u{001B}[93m[MLX:\(modelShort)] You:\u{001B}[0m ", terminator: "")
+            }
+            fflush(stdout)
+
+            guard let input = readLine(strippingNewline: true) else {
+                break  // EOF
+            }
+
+            let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+
+            // Handle commands
+            if trimmed.hasPrefix("/") {
+                await handleCommand(trimmed)
+                continue
+            }
+
+            // Allow exit without slash
+            let lower = trimmed.lowercased()
+            if lower == "exit" || lower == "quit" || lower == "bye" {
+                isRunning = false
+                continue
+            }
+
+            // Send message
+            await sendMessage(trimmed)
+        }
+
+        printInfo("Goodbye!")
+    }
+
+    // MARK: - Command Handling
+
+    private func handleCommand(_ command: String) async {
+        let cmd = command.lowercased()
+
+        switch cmd {
+        case "/quit", "/exit", "/q":
+            isRunning = false
+
+        case "/reset":
+            switch activeBackend {
+            case .fm:
+                await fmBackend.resetSession()
+                await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                printSuccess("FM conversation reset")
+            case .mlx:
+                await mlxBackend.resetSession()
+                do {
+                    try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                    printSuccess("MLX conversation reset")
+                } catch {
+                    printError("Failed to reinitialize MLX: \(error.localizedDescription)")
+                }
+            }
+
+        case "/stream":
+            if activeBackend == .fm {
+                let enabled = await fmBackend.toggleStreaming()
+                printInfo("Streaming: \(enabled ? "enabled" : "disabled")")
+            } else {
+                printWarning("Streaming is always on for MLX mode")
+            }
+
+        case "/fm":
+            activeBackend = .fm
+            let (available, _) = FoundationModelsBackend.checkAvailability()
+            if available {
+                await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                printSuccess("Switched to Foundation Models backend")
+            } else {
+                printError("Foundation Models not available on this device")
+                activeBackend = .mlx
+            }
+
+        case "/mlx":
+            activeBackend = .mlx
+            let modelId = await mlxBackend.getModelId()
+            printSuccess("Switched to MLX backend")
+            printInfo("Model: \(modelId)")
+            printInfo("Model will be downloaded on first use if not cached.")
+            do {
+                try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                printSuccess("MLX session initialized")
+            } catch {
+                printError("Failed to initialize MLX: \(error.localizedDescription)")
+            }
+
+        case _ where cmd.hasPrefix("/mlx-model "):
+            let modelId = String(command.dropFirst("/mlx-model ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if modelId.isEmpty {
+                printWarning("Usage: /mlx-model <model-id>")
+                printInfo("Example: /mlx-model mlx-community/gemma-3-4b-it-4bit")
+            } else {
+                await mlxBackend.setModelId(modelId)
+                printSuccess("MLX model set to: \(modelId)")
+                if activeBackend == .mlx {
+                    printInfo("Reinitializing with new model...")
+                    do {
+                        try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                        printSuccess("Session reinitialized")
+                    } catch {
+                        printError("Failed to reinitialize: \(error.localizedDescription)")
+                    }
+                }
+            }
+
+        case "/system":
+            if let prompt = customSystemPrompt {
+                printInfo("Current system prompt:")
+                printInfo("  \(prompt)")
+            } else {
+                printInfo("No custom system prompt set (using default)")
+            }
+
+        case "/system clear":
+            customSystemPrompt = nil
+            printSuccess("Custom system prompt cleared")
+            await reinitializeActiveBackend()
+
+        case "/system default":
+            switch activeBackend {
+            case .fm:
+                printInfo("Default FM system prompt:")
+                printInfo(FoundationModelsBackend.defaultSystemPrompt())
+            case .mlx:
+                printInfo("Default MLX system prompt:")
+                printInfo(MLXBackend.defaultSystemPrompt())
+            }
+
+        case _ where cmd.hasPrefix("/system "):
+            let text = String(command.dropFirst("/system ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                printWarning("Usage: /system <prompt text>")
+            } else {
+                customSystemPrompt = text
+                printSuccess("Custom system prompt set")
+                await reinitializeActiveBackend()
+            }
+
+        case "/tools":
+            printInfo("Tools: \(toolsEnabled ? "enabled" : "disabled") (FM only)")
+            let names = ToolRegistry.shared.toolNames()
+            if names.isEmpty {
+                printInfo("No tools registered")
+            } else {
+                printInfo("Registered tools:")
+                for name in names {
+                    printInfo("  - \(name)")
+                }
+            }
+            printInfo("Use /tools enable or /tools disable to toggle.")
+
+        case "/tools enable":
+            toolsEnabled = true
+            printSuccess("Tools enabled")
+            await reinitializeActiveBackend()
+
+        case "/tools disable":
+            toolsEnabled = false
+            printSuccess("Tools disabled")
+            await reinitializeActiveBackend()
+
+        case "/help", "/?":
+            printHelp()
+
+        default:
+            printWarning("Unknown command: \(command)")
+            printInfo("Type /help for available commands.")
+        }
+    }
+
+    // MARK: - Backend Reinitialization
+
+    private func reinitializeActiveBackend() async {
+        switch activeBackend {
+        case .fm:
+            await fmBackend.resetSession()
+            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+            printSuccess("FM session reinitialized")
+        case .mlx:
+            await mlxBackend.resetSession()
+            do {
+                try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                printSuccess("MLX session reinitialized")
+            } catch {
+                printError("Failed to reinitialize MLX: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Message Sending
+
+    private func sendMessage(_ message: String) async {
+        // Show assistant label
+        switch activeBackend {
+        case .fm:
+            print("\u{001B}[94m[FM] Assistant:\u{001B}[0m ", terminator: "")
+        case .mlx:
+            print("\u{001B}[93m[MLX] Assistant:\u{001B}[0m ", terminator: "")
+        }
+        fflush(stdout)
+
+        do {
+            switch activeBackend {
+            case .fm:
+                if await fmBackend.isStreaming() {
+                    let stream = try await fmBackend.streamMessage(message)
+                    var lastLength = 0
+                    for try await partial in stream {
+                        let newContent = String(partial.dropFirst(lastLength))
+                        print(newContent, terminator: "")
+                        fflush(stdout)
+                        lastLength = partial.count
+                    }
+                    print("")
+                } else {
+                    let response = try await fmBackend.sendMessage(message)
+                    print(response)
+                }
+
+            case .mlx:
+                let stream = try await mlxBackend.streamMessage(message)
+                var lastLength = 0
+                for try await partial in stream {
+                    let newContent = String(partial.dropFirst(lastLength))
+                    print(newContent, terminator: "")
+                    fflush(stdout)
+                    lastLength = partial.count
+                }
+                print("")
+            }
+        } catch {
+            print("")
+            printError("Error: \(error.localizedDescription)")
+        }
+
+        print("")
+    }
+}
+
+// MARK: - Terminal Output Helpers
+
+func printWelcome() {
+    print("")
+    print("\u{001B}[1;34m======================================================\u{001B}[0m")
+    print("\u{001B}[1;34m|\u{001B}[0m    \u{001B}[1;37mPerspective CLI\u{001B}[0m                                \u{001B}[1;34m|\u{001B}[0m")
+    print("\u{001B}[1;34m|\u{001B}[0m    Foundation Models + MLX on your Mac              \u{001B}[1;34m|\u{001B}[0m")
+    print("\u{001B}[1;34m======================================================\u{001B}[0m")
+    print("")
+}
+
+func printHelp() {
+    printInfo("Commands:")
+    printInfo("  /fm               - Switch to Foundation Models backend")
+    printInfo("  /mlx              - Switch to MLX backend")
+    printInfo("  /mlx-model <id>   - Set MLX model (e.g. mlx-community/gemma-3-4b-it-4bit)")
+    printInfo("  /system <prompt>  - Set a custom system prompt")
+    printInfo("  /system           - Show current custom system prompt")
+    printInfo("  /system default   - Show the built-in default system prompt")
+    printInfo("  /system clear     - Clear custom system prompt")
+    printInfo("  /stream           - Toggle streaming (FM only)")
+    printInfo("  /tools            - Show tool status and list")
+    printInfo("  /tools enable     - Enable tool calling (FM only)")
+    printInfo("  /tools disable    - Disable tool calling")
+    printInfo("  /reset            - Reset conversation")
+    printInfo("  /help             - Show this help")
+    printInfo("  /quit, /exit      - Exit")
+}
+
+func printSuccess(_ message: String) {
+    print("\u{001B}[32m[OK] \(message)\u{001B}[0m")
+}
+
+func printError(_ message: String) {
+    print("\u{001B}[31m[ERROR] \(message)\u{001B}[0m")
+}
+
+func printWarning(_ message: String) {
+    print("\u{001B}[33m[WARN] \(message)\u{001B}[0m")
+}
+
+func printInfo(_ message: String) {
+    print("\u{001B}[90m\(message)\u{001B}[0m")
+}

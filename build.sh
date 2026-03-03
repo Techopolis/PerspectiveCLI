@@ -1,0 +1,97 @@
+#!/bin/bash
+# build.sh — Build PerspectiveCLI
+#
+# Usage:
+#   ./build.sh           Build debug (default)
+#   ./build.sh release   Build release (optimized)
+#   ./build.sh clean     Clean build artifacts and rebuild debug
+#
+# This script handles both Swift compilation and Metal shader compilation,
+# which swift build cannot do on its own.
+
+set -euo pipefail
+
+CONFIG="debug"
+CLEAN=false
+
+case "${1:-}" in
+    release) CONFIG="release" ;;
+    clean)   CLEAN=true ;;
+esac
+
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$PROJECT_DIR"
+
+# ── Clean ──────────────────────────────────────────────────────────────
+if $CLEAN; then
+    echo "Cleaning build artifacts..."
+    swift package clean
+    echo ""
+fi
+
+# ── Swift Build ────────────────────────────────────────────────────────
+echo "Building PerspectiveCLI ($CONFIG)..."
+if [ "$CONFIG" = "release" ]; then
+    swift build -c release
+else
+    swift build
+fi
+
+BIN_DIR=$(swift build ${CONFIG:+-c $CONFIG} --show-bin-path 2>/dev/null)
+echo "Binary: $BIN_DIR/PerspectiveCLI"
+echo ""
+
+# ── Metal Shaders ──────────────────────────────────────────────────────
+# SwiftPM doesn't compile .metal files in C/C++ targets.
+# We compile them manually and place mlx.metallib next to the binary.
+
+METAL_DIR=".build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal"
+
+if [ ! -d "$METAL_DIR" ]; then
+    echo "Warning: Metal shader directory not found, skipping metallib build."
+    echo "MLX backend will not work without it."
+    exit 0
+fi
+
+# Skip if metallib is already newer than all .metal sources
+METALLIB="$BIN_DIR/mlx.metallib"
+if [ -f "$METALLIB" ]; then
+    NEEDS_REBUILD=false
+    while IFS= read -r f; do
+        if [ "$f" -nt "$METALLIB" ]; then
+            NEEDS_REBUILD=true
+            break
+        fi
+    done < <(find "$METAL_DIR" -name "*.metal")
+
+    if ! $NEEDS_REBUILD; then
+        echo "mlx.metallib is up to date, skipping."
+        echo ""
+        echo "Build complete."
+        exit 0
+    fi
+fi
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+echo "Compiling Metal shaders..."
+for f in $(find "$METAL_DIR" -name "*.metal"); do
+    name=$(basename "$f" .metal)
+    echo "  $name"
+    xcrun metal -c \
+        -I "$METAL_DIR" \
+        -I "$METAL_DIR/steel" \
+        -I "$METAL_DIR/steel/gemm" \
+        -I "$METAL_DIR/steel/conv" \
+        -I "$METAL_DIR/steel/attn" \
+        -I "$METAL_DIR/steel/attn/kernels" \
+        -o "$WORK/$name.air" "$f"
+done
+
+echo "Linking mlx.metallib..."
+xcrun metallib -o "$WORK/mlx.metallib" "$WORK"/*.air
+cp "$WORK/mlx.metallib" "$METALLIB"
+echo ""
+
+echo "Build complete."

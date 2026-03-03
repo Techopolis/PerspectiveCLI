@@ -1,0 +1,22 @@
+# Swift / Xcode
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+*.dSYM.zip
+*.dSYM
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+*.swp
+*~
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
