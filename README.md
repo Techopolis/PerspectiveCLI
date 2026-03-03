@@ -11,19 +11,41 @@ A lightweight, open-source Swift CLI for running **Apple Foundation Models** and
 
 Foundation Models requires Apple Intelligence to be enabled. MLX mode works on any Apple Silicon Mac.
 
-## Quick Start
+## Install from Release
+
+Download the latest release archive, then:
+
+```bash
+tar xzf perspective-cli-*.tar.gz
+cd perspective-cli-*
+./install.sh
+```
+
+This installs `perspective` and `mlx.metallib` to `/usr/local/bin/`. To install elsewhere:
+
+```bash
+./install.sh /opt/bin
+```
+
+To uninstall:
+
+```bash
+./install.sh --uninstall
+```
+
+## Build from Source
 
 ```bash
 git clone https://github.com/your-username/PerspectiveCLI.git
 cd PerspectiveCLI
 ./build.sh
+swift run PerspectiveCLI
 ```
 
-Or build manually:
+To create a release archive:
 
 ```bash
-swift build
-swift run PerspectiveCLI
+./build.sh dist
 ```
 
 ## Usage

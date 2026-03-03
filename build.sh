@@ -110,6 +110,7 @@ if $DIST; then
 
     cp "$BIN_DIR/PerspectiveCLI" "$STAGE/perspective"
     cp "$METALLIB" "$STAGE/mlx.metallib"
+    cp "$PROJECT_DIR/install.sh" "$STAGE/"
     cp "$PROJECT_DIR/LICENSE" "$STAGE/" 2>/dev/null || true
     cp "$PROJECT_DIR/README.md" "$STAGE/"
 
@@ -122,10 +123,10 @@ if $DIST; then
     echo "  $ARCHIVE"
     echo "  SHA-256: $SHA"
     echo ""
-    echo "To install manually:"
+    echo "To install:"
     echo "  tar xzf $(basename "$ARCHIVE")"
-    echo "  cp perspective-cli-${VERSION}/perspective /usr/local/bin/"
-    echo "  cp perspective-cli-${VERSION}/mlx.metallib /usr/local/bin/"
+    echo "  cd perspective-cli-${VERSION}"
+    echo "  ./install.sh"
 fi
 
 echo "Build complete."
