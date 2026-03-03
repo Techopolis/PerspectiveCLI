@@ -5,6 +5,7 @@
 #   ./build.sh           Build debug (default)
 #   ./build.sh release   Build release (optimized)
 #   ./build.sh clean     Clean build artifacts and rebuild debug
+#   ./build.sh dist      Build release + create distributable .tar.gz
 #
 # This script handles both Swift compilation and Metal shader compilation,
 # which swift build cannot do on its own.
@@ -13,10 +14,12 @@ set -euo pipefail
 
 CONFIG="debug"
 CLEAN=false
+DIST=false
 
 case "${1:-}" in
     release) CONFIG="release" ;;
     clean)   CLEAN=true ;;
+    dist)    CONFIG="release"; DIST=true ;;
 esac
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -66,32 +69,63 @@ if [ -f "$METALLIB" ]; then
 
     if ! $NEEDS_REBUILD; then
         echo "mlx.metallib is up to date, skipping."
-        echo ""
-        echo "Build complete."
-        exit 0
+        SKIP_METAL=true
     fi
 fi
 
-WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+if [ "${SKIP_METAL:-false}" = false ]; then
+    WORK=$(mktemp -d)
+    trap 'rm -rf "$WORK"' EXIT
 
-echo "Compiling Metal shaders..."
-for f in $(find "$METAL_DIR" -name "*.metal"); do
-    name=$(basename "$f" .metal)
-    echo "  $name"
-    xcrun metal -c \
-        -I "$METAL_DIR" \
-        -I "$METAL_DIR/steel" \
-        -I "$METAL_DIR/steel/gemm" \
-        -I "$METAL_DIR/steel/conv" \
-        -I "$METAL_DIR/steel/attn" \
-        -I "$METAL_DIR/steel/attn/kernels" \
-        -o "$WORK/$name.air" "$f"
-done
+    echo "Compiling Metal shaders..."
+    for f in $(find "$METAL_DIR" -name "*.metal"); do
+        name=$(basename "$f" .metal)
+        echo "  $name"
+        xcrun metal -c \
+            -I "$METAL_DIR" \
+            -I "$METAL_DIR/steel" \
+            -I "$METAL_DIR/steel/gemm" \
+            -I "$METAL_DIR/steel/conv" \
+            -I "$METAL_DIR/steel/attn" \
+            -I "$METAL_DIR/steel/attn/kernels" \
+            -o "$WORK/$name.air" "$f"
+    done
 
-echo "Linking mlx.metallib..."
-xcrun metallib -o "$WORK/mlx.metallib" "$WORK"/*.air
-cp "$WORK/mlx.metallib" "$METALLIB"
+    echo "Linking mlx.metallib..."
+    xcrun metallib -o "$WORK/mlx.metallib" "$WORK"/*.air
+    cp "$WORK/mlx.metallib" "$METALLIB"
+fi
+
 echo ""
+
+# ── Dist ──────────────────────────────────────────────────────────────
+if $DIST; then
+    VERSION=$(git describe --tags 2>/dev/null || echo "dev")
+    DIST_DIR="$PROJECT_DIR/dist"
+    STAGE="$DIST_DIR/perspective-cli-${VERSION}"
+    ARCHIVE="$DIST_DIR/perspective-cli-${VERSION}-macos-arm64.tar.gz"
+
+    rm -rf "$STAGE"
+    mkdir -p "$STAGE"
+
+    cp "$BIN_DIR/PerspectiveCLI" "$STAGE/perspective"
+    cp "$METALLIB" "$STAGE/mlx.metallib"
+    cp "$PROJECT_DIR/LICENSE" "$STAGE/" 2>/dev/null || true
+    cp "$PROJECT_DIR/README.md" "$STAGE/"
+
+    tar -czf "$ARCHIVE" -C "$DIST_DIR" "perspective-cli-${VERSION}"
+    rm -rf "$STAGE"
+
+    SHA=$(shasum -a 256 "$ARCHIVE" | cut -d' ' -f1)
+
+    echo "Distribution archive created:"
+    echo "  $ARCHIVE"
+    echo "  SHA-256: $SHA"
+    echo ""
+    echo "To install manually:"
+    echo "  tar xzf $(basename "$ARCHIVE")"
+    echo "  cp perspective-cli-${VERSION}/perspective /usr/local/bin/"
+    echo "  cp perspective-cli-${VERSION}/mlx.metallib /usr/local/bin/"
+fi
 
 echo "Build complete."
