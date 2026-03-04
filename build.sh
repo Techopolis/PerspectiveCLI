@@ -130,6 +130,21 @@ if $DIST; then
     echo ""
     echo "Or one-liner (after publishing the release):"
     echo "  curl -fsSL https://raw.githubusercontent.com/techopolis/PerspectiveCLI/main/scripts/remote-install.sh | bash"
+
+    # ── Update Homebrew formula ───────────────────────────────────────
+    FORMULA="$PROJECT_DIR/Formula/perspective.rb"
+    if [ -f "$FORMULA" ]; then
+        sed -i '' "s|url \".*\"|url \"https://github.com/techopolis/PerspectiveCLI/releases/download/${VERSION}/perspective-cli-${VERSION}-macos-arm64.tar.gz\"|" "$FORMULA"
+        sed -i '' "s|sha256 \".*\"|sha256 \"${SHA}\"|" "$FORMULA"
+        echo ""
+        echo "Homebrew formula updated:"
+        echo "  $FORMULA"
+        echo "  version: $VERSION"
+        echo "  sha256:  $SHA"
+        echo ""
+        echo "Copy to your homebrew-tap repo:"
+        echo "  cp $FORMULA /path/to/homebrew-tap/Formula/"
+    fi
 fi
 
 echo "Build complete."
