@@ -1,5 +1,11 @@
 # PerspectiveCLI
 
+[![GitHub Release](https://img.shields.io/github/v/release/techopolis/PerspectiveCLI)](https://github.com/techopolis/PerspectiveCLI/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/techopolis/PerspectiveCLI)](https://github.com/techopolis/PerspectiveCLI/stargazers)
+[![License: MIT](https://img.shields.io/github/license/techopolis/PerspectiveCLI)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS_26+-blue)]()
+[![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-orange)]()
+
 A lightweight, open-source Swift CLI for running **Apple Foundation Models** and **MLX models** on your Mac.
 
 ## Requirements
@@ -13,24 +19,26 @@ Foundation Models requires Apple Intelligence to be enabled. MLX mode works on a
 
 ## Install from Release
 
-Download the latest release archive, then:
+The quickest way to install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/techopolis/PerspectiveCLI/main/scripts/remote-install.sh | bash
+```
+
+Or download the latest release archive manually:
 
 ```bash
 tar xzf perspective-cli-*.tar.gz
 cd perspective-cli-*
-./install.sh
+sudo ./install.sh
 ```
 
-This installs `perspective` and `mlx.metallib` to `/usr/local/bin/`. To install elsewhere:
-
-```bash
-./install.sh /opt/bin
-```
+This installs to `/usr/local/bin` (requires `sudo` because the directory is owned by root on macOS). If `/usr/local/bin` isn't on your PATH, the script will tell you how to add it.
 
 To uninstall:
 
 ```bash
-./install.sh --uninstall
+sudo ./install.sh --uninstall
 ```
 
 ## Build from Source

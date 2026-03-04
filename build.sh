@@ -127,6 +127,9 @@ if $DIST; then
     echo "  tar xzf $(basename "$ARCHIVE")"
     echo "  cd perspective-cli-${VERSION}"
     echo "  ./install.sh"
+    echo ""
+    echo "Or one-liner (after publishing the release):"
+    echo "  curl -fsSL https://raw.githubusercontent.com/techopolis/PerspectiveCLI/main/scripts/remote-install.sh | bash"
 fi
 
 echo "Build complete."

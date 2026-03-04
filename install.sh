@@ -2,19 +2,30 @@
 # install.sh — Install PerspectiveCLI
 #
 # Usage:
-#   ./install.sh              Install to /usr/local/bin (default)
-#   ./install.sh /custom/path Install to a custom directory
-#   ./install.sh --uninstall  Remove installed files
+#   sudo ./install.sh              Install to /usr/local/bin
+#   sudo ./install.sh --uninstall  Remove installed files
+#
+# Requires sudo because /usr/local/bin is owned by root on macOS.
 
 set -euo pipefail
 
-INSTALL_DIR="${1:-/usr/local/bin}"
+INSTALL_DIR="/usr/local/bin"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ── Check sudo ────────────────────────────────────────────────────────
+# /usr/local/bin is owned by root on macOS, so we need elevated privileges.
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: This script must be run with sudo."
+    echo ""
+    echo "  sudo $0 ${1:-}"
+    echo ""
+    echo "/usr/local/bin is owned by root, so elevated privileges are required."
+    exit 1
+fi
 
 # ── Uninstall ─────────────────────────────────────────────────────────
 if [ "${1:-}" = "--uninstall" ]; then
-    INSTALL_DIR="/usr/local/bin"
-    echo "Uninstalling Perspective CLI from $INSTALL_DIR..."
+    echo "Uninstalling Perspective CLI..."
     rm -f "$INSTALL_DIR/perspective"
     rm -f "$INSTALL_DIR/mlx.metallib"
     echo "Done."
@@ -22,7 +33,6 @@ if [ "${1:-}" = "--uninstall" ]; then
 fi
 
 # ── Install ───────────────────────────────────────────────────────────
-echo "Installing Perspective CLI to $INSTALL_DIR..."
 
 # Check that the binary exists in the same directory as this script
 if [ ! -f "$SCRIPT_DIR/perspective" ]; then
@@ -31,7 +41,9 @@ if [ ! -f "$SCRIPT_DIR/perspective" ]; then
     exit 1
 fi
 
-# Create install directory if needed
+echo "Installing Perspective CLI to $INSTALL_DIR..."
+
+# Create install directory
 mkdir -p "$INSTALL_DIR"
 
 # Copy files
@@ -44,14 +56,23 @@ fi
 
 echo "Done."
 echo ""
-echo "  perspective  → $INSTALL_DIR/perspective"
+echo "  $INSTALL_DIR/perspective"
 if [ -f "$SCRIPT_DIR/mlx.metallib" ]; then
-    echo "  mlx.metallib → $INSTALL_DIR/mlx.metallib"
+    echo "  $INSTALL_DIR/mlx.metallib"
 fi
 echo ""
 
 # Check if install dir is on PATH
-if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-    echo "Note: $INSTALL_DIR is not on your PATH."
-    echo "Add it with: export PATH=\"$INSTALL_DIR:\$PATH\""
+if echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
+    echo "Run 'perspective' to start."
+else
+    echo "Add /usr/local/bin to your PATH by adding this to your ~/.zshrc:"
+    echo ""
+    echo "  export PATH=\"/usr/local/bin:\$PATH\""
+    echo ""
+    echo "Then restart your terminal, or run:"
+    echo ""
+    echo "  source ~/.zshrc"
 fi
+echo ""
+echo "To uninstall: sudo ./install.sh --uninstall"
