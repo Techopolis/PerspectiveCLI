@@ -8,7 +8,7 @@
 
 A lightweight, open-source Swift CLI for running **Apple Foundation Models** and **MLX models** on your Mac.
 
-<img src="assets/perspective.png" alt="Perspective CLI showing the user asking Foundation Models to give some quick information about iOS" width="600">
+<img src="assets/perspectivecli.png" alt="Perspective CLI showing the user asking Foundation Models to give some quick information about iOS" width="600">
 
 ## Requirements
 
