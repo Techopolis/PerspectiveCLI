@@ -373,10 +373,10 @@ actor CLIApp {
 
 func printWelcome() {
     print("")
-    print("\u{001B}[1;34m======================================================\u{001B}[0m")
-    print("\u{001B}[1;34m|\u{001B}[0m    \u{001B}[1;37mPerspective CLI\u{001B}[0m                                \u{001B}[1;34m|\u{001B}[0m")
-    print("\u{001B}[1;34m|\u{001B}[0m    Foundation Models + MLX on your Mac              \u{001B}[1;34m|\u{001B}[0m")
-    print("\u{001B}[1;34m======================================================\u{001B}[0m")
+    print("\u{001B}[1;34m====================================================\u{001B}[0m")
+    print("\u{001B}[1;34m|\u{001B}[0m    \u{001B}[1;37mPerspective CLI\u{001B}[0m                               \u{001B}[1;34m|\u{001B}[0m")
+    print("\u{001B}[1;34m|\u{001B}[0m    Foundation Models + MLX on your Mac           \u{001B}[1;34m|\u{001B}[0m")
+    print("\u{001B}[1;34m====================================================\u{001B}[0m")
     print("")
 }
 
