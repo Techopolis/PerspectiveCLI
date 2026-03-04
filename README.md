@@ -81,17 +81,17 @@ perspective --mlx --mlx-model mlx-community/gemma-3-4b-it-4bit --prompt "Hi"
 perspective --temperature 0.5 --system "Be brief" --prompt "Explain recursion"
 ```
 
-| Argument | Value | Description |
-|----------|-------|-------------|
-| `--fm` | | Use Foundation Models backend |
-| `--mlx` | | Use MLX backend |
-| `--mlx-model` | `<model-id>` | Set MLX model |
-| `--prompt` | `<text>` | Send prompt and exit (one-shot mode) |
-| `--temperature` | `<float>` | Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0) |
-| `--stream` | | Enable streaming output (FM) |
-| `--system` | `<text>` | Set a custom system prompt |
-| `--tools` | | Enable tool calling (FM) |
-| `--help`, `-h` | | Show usage help |
+| Argument | Short | Value | Description |
+|----------|-------|-------|-------------|
+| `--fm` | | | Use Foundation Models backend |
+| `--mlx` | | | Use MLX backend |
+| `--model` | `-m` | `<model-id>` | Set MLX model |
+| `--prompt` | `-p` | `<text>` | Send prompt and exit (one-shot mode) |
+| `--temperature` | `-t` | `<float>` | Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0) |
+| `--stream` | `-s` | | Enable streaming output (FM) |
+| `--system` | | `<text>` | Set a custom system prompt |
+| `--tools` | | | Enable tool calling (FM) |
+| `--help` | `-h` | | Show usage help |
 
 Without `--prompt`, arguments pre-configure the interactive REPL:
 

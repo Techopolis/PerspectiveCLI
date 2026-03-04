@@ -77,13 +77,13 @@ struct CLIArguments {
                 backend = .fm
             case "--mlx":
                 backend = .mlx
-            case "--mlx-model":
+            case "--model", "--mlx-model", "-m":
                 mlxModel = iter.next()
-            case "--prompt":
+            case "--prompt", "-p":
                 prompt = iter.next()
-            case "--temperature":
+            case "--temperature", "-t":
                 if let val = iter.next() { temperature = Float(val) }
-            case "--stream":
+            case "--stream", "-s":
                 stream = true
             case "--system":
                 systemPrompt = iter.next()
@@ -582,13 +582,13 @@ func printUsage() {
     print("Options:")
     print("  --fm                  Use Foundation Models backend")
     print("  --mlx                 Use MLX backend")
-    print("  --mlx-model <id>      Set MLX model (e.g. mlx-community/gemma-3-4b-it-4bit)")
-    print("  --prompt <text>       Send a prompt and exit (one-shot mode)")
-    print("  --temperature <float> Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0)")
-    print("  --stream              Enable streaming output (FM)")
+    print("  -m, --model <id>      Set MLX model (e.g. mlx-community/gemma-3-4b-it-4bit)")
+    print("  -p, --prompt <text>   Send a prompt and exit (one-shot mode)")
+    print("  -t, --temperature <n> Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0)")
+    print("  -s, --stream          Enable streaming output (FM)")
     print("  --system <text>       Set a custom system prompt")
     print("  --tools               Enable tool calling (FM)")
-    print("  --help, -h            Show this help")
+    print("  -h, --help            Show this help")
     print("")
     print("Examples:")
     print("  perspective --fm --prompt \"What is Swift?\"")
