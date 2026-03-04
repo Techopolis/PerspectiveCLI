@@ -17,15 +17,25 @@ A lightweight, open-source Swift CLI for running **Apple Foundation Models** and
 
 Foundation Models requires Apple Intelligence to be enabled. MLX mode works on any Apple Silicon Mac.
 
-## Install from Release
+## Install
 
-The quickest way to install:
+### Homebrew
+
+```bash
+brew install techopolis/tap/perspective
+```
+
+### Shell Script
+
+The quickest way to install without Homebrew:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/techopolis/PerspectiveCLI/main/scripts/remote-install.sh | bash
 ```
 
-Or download the latest release archive manually:
+### Manual Download
+
+Download the latest release archive from [Releases](https://github.com/techopolis/PerspectiveCLI/releases), then:
 
 ```bash
 tar xzf perspective-cli-*.tar.gz

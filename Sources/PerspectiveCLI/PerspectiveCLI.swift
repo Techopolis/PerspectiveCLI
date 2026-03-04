@@ -15,7 +15,21 @@ import FoundationModels
 @main
 struct PerspectiveCLI {
     static func main() async {
+        // mlx-swift uses dladdr to find mlx.metallib next to the binary.
+        // When installed via symlink (e.g. Homebrew) or relocated, that lookup
+        // can fail. Resolve the real executable path and chdir there so the
+        // colocated metallib search succeeds regardless of install location.
+        Self.chdirToExecutableDirectory()
+
         await CLIApp.shared.run()
+    }
+
+    /// Change working directory to the real (symlink-resolved) executable directory.
+    private static func chdirToExecutableDirectory() {
+        let execPath = ProcessInfo.processInfo.arguments[0]
+        let execURL = URL(fileURLWithPath: execPath).resolvingSymlinksInPath()
+        let dir = execURL.deletingLastPathComponent().path
+        FileManager.default.changeCurrentDirectoryPath(dir)
     }
 }
 

@@ -9,8 +9,12 @@ class Perspective < Formula
   depends_on :macos
 
   def install
-    bin.install "perspective"
-    lib.install "mlx.metallib" if File.exist?("mlx.metallib")
+    # Both files must be colocated — mlx-swift uses dladdr to find mlx.metallib
+    # next to the binary at runtime. Using libexec keeps them together while
+    # symlinking the executable into bin/ on the PATH.
+    libexec.install "perspective"
+    libexec.install "mlx.metallib" if File.exist?("mlx.metallib")
+    bin.install_symlink libexec/"perspective"
   end
 
   test do
