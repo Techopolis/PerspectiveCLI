@@ -70,6 +70,38 @@ To create a release archive:
 
 ## Usage
 
+### Command-Line Arguments
+
+Run with `--prompt` for one-shot mode (no REPL, clean output for piping):
+
+```bash
+perspective --fm --prompt "What is Swift?"
+perspective --mlx --prompt "Hello"
+perspective --mlx --mlx-model mlx-community/gemma-3-4b-it-4bit --prompt "Hi"
+perspective --temperature 0.5 --system "Be brief" --prompt "Explain recursion"
+```
+
+| Argument | Value | Description |
+|----------|-------|-------------|
+| `--fm` | | Use Foundation Models backend |
+| `--mlx` | | Use MLX backend |
+| `--mlx-model` | `<model-id>` | Set MLX model |
+| `--prompt` | `<text>` | Send prompt and exit (one-shot mode) |
+| `--temperature` | `<float>` | Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0) |
+| `--stream` | | Enable streaming output (FM) |
+| `--system` | `<text>` | Set a custom system prompt |
+| `--tools` | | Enable tool calling (FM) |
+| `--help`, `-h` | | Show usage help |
+
+Without `--prompt`, arguments pre-configure the interactive REPL:
+
+```bash
+perspective --mlx                # enter REPL with MLX pre-selected
+perspective --fm --tools         # enter REPL with FM + tools enabled
+```
+
+### Interactive REPL
+
 Type messages to chat. Use slash commands to control the CLI:
 
 ### Backend Commands
