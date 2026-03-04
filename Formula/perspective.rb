@@ -1,8 +1,8 @@
 class Perspective < Formula
   desc "Swift CLI for Apple Foundation Models and MLX models"
   homepage "https://github.com/techopolis/PerspectiveCLI"
-  url "https://github.com/techopolis/PerspectiveCLI/releases/download/0.14.1/perspective-cli-0.14.1-macos-arm64.tar.gz"
-  sha256 "eed0b13bedd6dbb3985d962efe8a2d4096b3e2224dae5572356d128249f8c1c9"
+  url "https://github.com/techopolis/PerspectiveCLI/releases/download/0.14.2/perspective-cli-0.14.2-macos-arm64.tar.gz"
+  sha256 "13e7439636a40a2a0afd445b4045ac1e2b50135a10bf705edf90197121122501"
   license "MIT"
 
   depends_on arch: :arm64
