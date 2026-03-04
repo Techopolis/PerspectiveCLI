@@ -21,7 +21,14 @@ struct PerspectiveCLI {
         // colocated metallib search succeeds regardless of install location.
         Self.chdirToExecutableDirectory()
 
-        await CLIApp.shared.run()
+        let args = CLIArguments()
+
+        if args.help {
+            printUsage()
+            return
+        }
+
+        await CLIApp.shared.run(with: args)
     }
 
     /// Change working directory to the real (symlink-resolved) executable directory.
@@ -49,6 +56,50 @@ enum CLIError: LocalizedError {
     }
 }
 
+// MARK: - CLI Arguments
+
+struct CLIArguments {
+    var backend: Backend?
+    var mlxModel: String?
+    var prompt: String?
+    var temperature: Float?
+    var stream: Bool = false
+    var systemPrompt: String?
+    var tools: Bool = false
+    var help: Bool = false
+
+    init() {
+        let args = CommandLine.arguments.dropFirst() // skip executable path
+        var iter = args.makeIterator()
+        while let arg = iter.next() {
+            switch arg {
+            case "--fm":
+                backend = .fm
+            case "--mlx":
+                backend = .mlx
+            case "--mlx-model":
+                mlxModel = iter.next()
+            case "--prompt":
+                prompt = iter.next()
+            case "--temperature":
+                if let val = iter.next() { temperature = Float(val) }
+            case "--stream":
+                stream = true
+            case "--system":
+                systemPrompt = iter.next()
+            case "--tools":
+                tools = true
+            case "--help", "-h":
+                help = true
+            default:
+                printError("Unknown argument: \(arg)")
+                help = true
+                return
+            }
+        }
+    }
+}
+
 // MARK: - Backend Selection
 
 enum Backend: String {
@@ -71,6 +122,106 @@ actor CLIApp {
 
     private init() {}
 
+    /// Apply CLI arguments to configure backends before starting.
+    private func applyArgs(_ args: CLIArguments) async {
+        if let backend = args.backend {
+            activeBackend = backend
+        }
+        if let system = args.systemPrompt {
+            customSystemPrompt = system
+        }
+        if args.tools {
+            toolsEnabled = true
+        }
+        if args.stream {
+            await fmBackend.setStreaming(true)
+        }
+        if let temp = args.temperature {
+            switch activeBackend {
+            case .fm:
+                await fmBackend.setTemperature(temp)
+            case .mlx:
+                await mlxBackend.setTemperature(temp)
+            }
+        }
+        if let model = args.mlxModel {
+            await mlxBackend.setModelId(model)
+        }
+    }
+
+    /// Initialize the active backend, returning true on success.
+    private func initializeActiveBackend(quiet: Bool = false) async -> Bool {
+        switch activeBackend {
+        case .fm:
+            let (available, msg) = FoundationModelsBackend.checkAvailability()
+            if !available {
+                printError(msg)
+                return false
+            }
+            if !quiet { printSuccess(msg) }
+            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+            if !quiet { printSuccess("FM session initialized") }
+            return true
+        case .mlx:
+            do {
+                try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                if !quiet { printSuccess("MLX session initialized") }
+                return true
+            } catch {
+                printError("Failed to initialize MLX: \(error.localizedDescription)")
+                return false
+            }
+        }
+    }
+
+    /// One-shot mode: send a prompt, print the response, and exit.
+    private func runOneShot(_ prompt: String) async {
+        guard await initializeActiveBackend(quiet: true) else { return }
+
+        do {
+            switch activeBackend {
+            case .fm:
+                if await fmBackend.isStreaming() {
+                    let stream = try await fmBackend.streamMessage(prompt)
+                    var lastLength = 0
+                    for try await partial in stream {
+                        let newContent = String(partial.dropFirst(lastLength))
+                        print(newContent, terminator: "")
+                        fflush(stdout)
+                        lastLength = partial.count
+                    }
+                    print("")
+                } else {
+                    let response = try await fmBackend.sendMessage(prompt)
+                    print(response)
+                }
+            case .mlx:
+                let stream = try await mlxBackend.streamMessage(prompt)
+                var lastLength = 0
+                for try await partial in stream {
+                    let newContent = String(partial.dropFirst(lastLength))
+                    print(newContent, terminator: "")
+                    fflush(stdout)
+                    lastLength = partial.count
+                }
+                print("")
+            }
+        } catch {
+            printError("Error: \(error.localizedDescription)")
+        }
+    }
+
+    func run(with args: CLIArguments) async {
+        await applyArgs(args)
+
+        if let prompt = args.prompt {
+            await runOneShot(prompt)
+            return
+        }
+
+        await run()
+    }
+
     func run() async {
         printWelcome()
 
@@ -85,9 +236,19 @@ actor CLIApp {
         }
 
         // Initialize FM backend if available
-        if fmAvailable {
+        if fmAvailable && activeBackend == .fm {
             await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
             printSuccess("FM session initialized")
+        }
+
+        // Initialize MLX backend if selected via args
+        if activeBackend == .mlx {
+            do {
+                try await mlxBackend.initialize(customPrompt: customSystemPrompt)
+                printSuccess("MLX session initialized")
+            } catch {
+                printError("Failed to initialize MLX: \(error.localizedDescription)")
+            }
         }
 
         printHelp()
@@ -413,4 +574,27 @@ func printWarning(_ message: String) {
 
 func printInfo(_ message: String) {
     print("\u{001B}[90m\(message)\u{001B}[0m")
+}
+
+func printUsage() {
+    print("Usage: perspective [options]")
+    print("")
+    print("Options:")
+    print("  --fm                  Use Foundation Models backend")
+    print("  --mlx                 Use MLX backend")
+    print("  --mlx-model <id>      Set MLX model (e.g. mlx-community/gemma-3-4b-it-4bit)")
+    print("  --prompt <text>       Send a prompt and exit (one-shot mode)")
+    print("  --temperature <float> Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0)")
+    print("  --stream              Enable streaming output (FM)")
+    print("  --system <text>       Set a custom system prompt")
+    print("  --tools               Enable tool calling (FM)")
+    print("  --help, -h            Show this help")
+    print("")
+    print("Examples:")
+    print("  perspective --fm --prompt \"What is Swift?\"")
+    print("  perspective --mlx --prompt \"Hello\"")
+    print("  perspective --mlx --mlx-model mlx-community/gemma-3-4b-it-4bit")
+    print("  perspective --temperature 0.5 --prompt \"Be creative\"")
+    print("")
+    print("Without --prompt, enters interactive REPL mode.")
 }

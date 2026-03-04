@@ -110,6 +110,7 @@ actor FoundationModelsBackend {
     // MARK: - Configuration
 
     func isStreaming() -> Bool { streamingEnabled }
+    func setStreaming(_ enabled: Bool) { streamingEnabled = enabled }
     func toggleStreaming() -> Bool {
         streamingEnabled.toggle()
         return streamingEnabled
