@@ -138,6 +138,7 @@ Tools are disabled by default. Enable them for the FM backend:
 
 | Command | Description |
 |---------|-------------|
+| `/status` | Show Foundation Models availability and current settings |
 | `/help` | Show help |
 | `/quit`, `/exit` | Exit |
 
