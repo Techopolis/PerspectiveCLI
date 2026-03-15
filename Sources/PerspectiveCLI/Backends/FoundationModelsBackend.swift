@@ -34,6 +34,30 @@ actor FoundationModelsBackend {
         }
     }
 
+    /// Detailed availability status for the /status command.
+    static func detailedAvailability() -> (available: Bool, reason: String) {
+        let availability = SystemLanguageModel.default.availability
+        switch availability {
+        case .available:
+            return (true, "Ready")
+        case .unavailable(let reason):
+            let detail: String
+            switch reason {
+            case .deviceNotEligible:
+                detail = "Device not eligible (requires Apple Silicon with Apple Intelligence support)"
+            case .appleIntelligenceNotEnabled:
+                detail = "Apple Intelligence is not enabled (enable in Settings > Apple Intelligence & Siri)"
+            case .modelNotReady:
+                detail = "Model assets are not ready (still downloading or not yet installed)"
+            @unknown default:
+                detail = "Unknown reason"
+            }
+            return (false, detail)
+        @unknown default:
+            return (false, "Unknown availability status")
+        }
+    }
+
     /// Initialize or reinitialize the FM session.
     /// When `enableTools` is true, tools and tool-usage instructions are included.
     func initialize(customPrompt: String? = nil, enableTools: Bool = false) {

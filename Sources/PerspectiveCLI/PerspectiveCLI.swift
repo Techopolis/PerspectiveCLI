@@ -452,6 +452,36 @@ actor CLIApp {
                 printWarning("Invalid temperature. Use a value between 0.0 and \(maxTemp)")
             }
 
+        case "/status":
+            printInfo("Perspective CLI Status")
+            printInfo("─────────────────────")
+            // Active backend
+            printInfo("  Active backend:    \(activeBackend.rawValue)")
+            // FM availability
+            let (fmOk, fmDetail) = FoundationModelsBackend.detailedAvailability()
+            if fmOk {
+                printSuccess("Foundation Models: \(fmDetail)")
+            } else {
+                printError("Foundation Models: \(fmDetail)")
+            }
+            // FM settings
+            let fmTemp = await fmBackend.getTemperature()
+            let fmStream = await fmBackend.isStreaming()
+            printInfo("  FM temperature:    \(fmTemp)")
+            printInfo("  FM streaming:      \(fmStream ? "on" : "off")")
+            printInfo("  Tools:             \(toolsEnabled ? "enabled" : "disabled")")
+            // MLX settings
+            let mlxModel = await mlxBackend.getModelId()
+            let mlxTemp = await mlxBackend.getTemperature()
+            printInfo("  MLX model:         \(mlxModel)")
+            printInfo("  MLX temperature:   \(mlxTemp)")
+            // System prompt
+            if customSystemPrompt != nil {
+                printInfo("  System prompt:     custom")
+            } else {
+                printInfo("  System prompt:     default")
+            }
+
         case "/help", "/?":
             printHelp()
 
@@ -555,6 +585,7 @@ func printHelp() {
     printInfo("  /tools            - Show tool status and list")
     printInfo("  /tools enable     - Enable tool calling (FM only)")
     printInfo("  /tools disable    - Disable tool calling")
+    printInfo("  /status           - Show Foundation Models availability and settings")
     printInfo("  /reset            - Reset conversation")
     printInfo("  /help             - Show this help")
     printInfo("  /quit, /exit      - Exit")
