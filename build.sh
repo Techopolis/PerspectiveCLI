@@ -135,6 +135,7 @@ if $DIST; then
     FORMULA="$PROJECT_DIR/Formula/perspective.rb"
     if [ -f "$FORMULA" ]; then
         sed -i '' "s|url \".*\"|url \"https://github.com/techopolis/PerspectiveCLI/releases/download/${VERSION}/perspective-cli-${VERSION}-macos-arm64.tar.gz\"|" "$FORMULA"
+        sed -i '' "s|version \".*\"|version \"${VERSION}\"|" "$FORMULA"
         sed -i '' "s|sha256 \".*\"|sha256 \"${SHA}\"|" "$FORMULA"
         echo ""
         echo "Homebrew formula updated:"
