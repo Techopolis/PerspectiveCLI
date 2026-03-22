@@ -45,6 +45,7 @@ struct PerspectiveCLI {
 enum CLIError: LocalizedError {
     case sessionNotInitialized
     case backendUnavailable(String)
+    case adapterNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -52,6 +53,8 @@ enum CLIError: LocalizedError {
             return "Session not initialized. Try /reset to reinitialize."
         case .backendUnavailable(let reason):
             return "Backend unavailable: \(reason)"
+        case .adapterNotFound(let path):
+            return "Adapter file not found: \(path)"
         }
     }
 }
@@ -66,6 +69,7 @@ struct CLIArguments {
     var stream: Bool = false
     var systemPrompt: String?
     var tools: Bool = false
+    var adapter: String?
     var help: Bool = false
 
     init() {
@@ -89,6 +93,8 @@ struct CLIArguments {
                 systemPrompt = iter.next()
             case "--tools":
                 tools = true
+            case "--adapter":
+                adapter = iter.next()
             case "--help", "-h":
                 help = true
             default:
@@ -147,6 +153,14 @@ actor CLIApp {
         if let model = args.mlxModel {
             await mlxBackend.setModelId(model)
         }
+        if let adapterPath = args.adapter {
+            do {
+                try await fmBackend.loadAdapter(from: adapterPath)
+                printSuccess("Adapter loaded: \(adapterPath)")
+            } catch {
+                printError("Failed to load adapter: \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Initialize the active backend, returning true on success.
@@ -159,7 +173,12 @@ actor CLIApp {
                 return false
             }
             if !quiet { printSuccess(msg) }
-            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+            do {
+                try await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+            } catch {
+                printError("Failed to initialize FM: \(error.localizedDescription)")
+                return false
+            }
             if !quiet { printSuccess("FM session initialized") }
             return true
         case .mlx:
@@ -237,8 +256,12 @@ actor CLIApp {
 
         // Initialize FM backend if available
         if fmAvailable && activeBackend == .fm {
-            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
-            printSuccess("FM session initialized")
+            do {
+                try await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                printSuccess("FM session initialized")
+            } catch {
+                printError("Failed to initialize FM: \(error.localizedDescription)")
+            }
         }
 
         // Initialize MLX backend if selected via args
@@ -306,8 +329,12 @@ actor CLIApp {
             switch activeBackend {
             case .fm:
                 await fmBackend.resetSession()
-                await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
-                printSuccess("FM conversation reset")
+                do {
+                    try await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                    printSuccess("FM conversation reset")
+                } catch {
+                    printError("Failed to reinitialize FM: \(error.localizedDescription)")
+                }
             case .mlx:
                 await mlxBackend.resetSession()
                 do {
@@ -330,8 +357,12 @@ actor CLIApp {
             activeBackend = .fm
             let (available, _) = FoundationModelsBackend.checkAvailability()
             if available {
-                await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
-                printSuccess("Switched to Foundation Models backend")
+                do {
+                    try await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                    printSuccess("Switched to Foundation Models backend")
+                } catch {
+                    printError("Failed to initialize FM: \(error.localizedDescription)")
+                }
             } else {
                 printError("Foundation Models not available on this device")
                 activeBackend = .mlx
@@ -452,6 +483,39 @@ actor CLIApp {
                 printWarning("Invalid temperature. Use a value between 0.0 and \(maxTemp)")
             }
 
+        case "/adapter":
+            if let path = await fmBackend.currentAdapterPath() {
+                printInfo("Current adapter: \(path)")
+            } else {
+                printInfo("No adapter loaded")
+            }
+
+        case "/adapter clear":
+            await fmBackend.clearAdapter()
+            printSuccess("Adapter cleared")
+            if activeBackend == .fm {
+                await reinitializeActiveBackend()
+            }
+
+        case _ where cmd.hasPrefix("/adapter "):
+            let path = String(command.dropFirst("/adapter ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if path.isEmpty {
+                printWarning("Usage: /adapter <path-to-.fmadapter>")
+            } else {
+                let resolved = NSString(string: path).expandingTildeInPath
+                do {
+                    try await fmBackend.loadAdapter(from: resolved)
+                    printSuccess("Adapter loaded: \(resolved)")
+                    if activeBackend == .fm {
+                        printInfo("Reinitializing FM session with adapter...")
+                        await reinitializeActiveBackend()
+                    }
+                } catch {
+                    printError("Failed to load adapter: \(error.localizedDescription)")
+                }
+            }
+
         case "/status":
             printInfo("Perspective CLI Status")
             printInfo("─────────────────────")
@@ -470,6 +534,12 @@ actor CLIApp {
             printInfo("  FM temperature:    \(fmTemp)")
             printInfo("  FM streaming:      \(fmStream ? "on" : "off")")
             printInfo("  Tools:             \(toolsEnabled ? "enabled" : "disabled")")
+            // Adapter
+            if let adapterPath = await fmBackend.currentAdapterPath() {
+                printInfo("  FM adapter:        \(adapterPath)")
+            } else {
+                printInfo("  FM adapter:        none")
+            }
             // MLX settings
             let mlxModel = await mlxBackend.getModelId()
             let mlxTemp = await mlxBackend.getTemperature()
@@ -497,8 +567,12 @@ actor CLIApp {
         switch activeBackend {
         case .fm:
             await fmBackend.resetSession()
-            await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
-            printSuccess("FM session reinitialized")
+            do {
+                try await fmBackend.initialize(customPrompt: customSystemPrompt, enableTools: toolsEnabled)
+                printSuccess("FM session reinitialized")
+            } catch {
+                printError("Failed to reinitialize FM: \(error.localizedDescription)")
+            }
         case .mlx:
             await mlxBackend.resetSession()
             do {
@@ -582,6 +656,9 @@ func printHelp() {
     printInfo("  /system clear     - Clear custom system prompt")
     printInfo("  /temperature <n>  - Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0)")
     printInfo("  /stream           - Toggle streaming (FM only)")
+    printInfo("  /adapter <path>   - Load a .fmadapter file (FM only)")
+    printInfo("  /adapter          - Show current adapter")
+    printInfo("  /adapter clear    - Remove loaded adapter")
     printInfo("  /tools            - Show tool status and list")
     printInfo("  /tools enable     - Enable tool calling (FM only)")
     printInfo("  /tools disable    - Disable tool calling")
@@ -619,6 +696,7 @@ func printUsage() {
     print("  -s, --stream          Enable streaming output (FM)")
     print("  --system <text>       Set a custom system prompt")
     print("  --tools               Enable tool calling (FM)")
+    print("  --adapter <path>      Load a .fmadapter file (FM)")
     print("  -h, --help            Show this help")
     print("")
     print("Examples:")

@@ -18,6 +18,7 @@ actor FoundationModelsBackend {
     private var streamingEnabled = true
     private var temperature: Double = 0.7
     private var generationOptions: GenerationOptions { GenerationOptions(temperature: temperature) }
+    private var adapterURL: URL?
 
     // MARK: - Initialization
 
@@ -60,7 +61,7 @@ actor FoundationModelsBackend {
 
     /// Initialize or reinitialize the FM session.
     /// When `enableTools` is true, tools and tool-usage instructions are included.
-    func initialize(customPrompt: String? = nil, enableTools: Bool = false) {
+    func initialize(customPrompt: String? = nil, enableTools: Bool = false) throws {
         var instructions = Self.systemInstructions
         if enableTools {
             instructions += "\n\n" + Self.toolInstructions
@@ -68,19 +69,54 @@ actor FoundationModelsBackend {
         if let customPrompt, !customPrompt.isEmpty {
             instructions = customPrompt + "\n\n" + instructions
         }
+
+        let model: SystemLanguageModel
+        if let adapterURL {
+            let adapter = try SystemLanguageModel.Adapter(fileURL: adapterURL)
+            model = SystemLanguageModel(adapter: adapter)
+        } else {
+            model = SystemLanguageModel.default
+        }
+
         if enableTools {
             let tools = ToolRegistry.shared.allTools()
             session = LanguageModelSession(
-                model: SystemLanguageModel.default,
+                model: model,
                 tools: tools,
                 instructions: instructions
             )
         } else {
             session = LanguageModelSession(
-                model: SystemLanguageModel.default,
+                model: model,
                 instructions: instructions
             )
         }
+    }
+
+    // MARK: - Adapter Management
+
+    /// Load an adapter from a .fmadapter file path.
+    func loadAdapter(from path: String) throws {
+        // Strip shell escape backslashes and quotes, then expand ~
+        let cleaned = path
+            .replacingOccurrences(of: "\\", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        let expanded = NSString(string: cleaned).expandingTildeInPath
+        let url = URL(fileURLWithPath: expanded)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError.adapterNotFound(expanded)
+        }
+        adapterURL = url
+    }
+
+    /// Clear the currently loaded adapter.
+    func clearAdapter() {
+        adapterURL = nil
+    }
+
+    /// Returns the path of the currently loaded adapter, if any.
+    func currentAdapterPath() -> String? {
+        adapterURL?.path
     }
 
     /// Returns the built-in default system prompt.
