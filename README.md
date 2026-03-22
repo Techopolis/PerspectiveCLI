@@ -91,6 +91,7 @@ perspective --temperature 0.5 --system "Be brief" --prompt "Explain recursion"
 | `--stream` | `-s` | | Enable streaming output (FM) |
 | `--system` | | `<text>` | Set a custom system prompt |
 | `--tools` | | | Enable tool calling (FM) |
+| `--adapter` | | `<path>` | Load a `.fmadapter` file (FM) |
 | `--help` | `-h` | | Show usage help |
 
 Without `--prompt`, arguments pre-configure the interactive REPL:
@@ -98,6 +99,7 @@ Without `--prompt`, arguments pre-configure the interactive REPL:
 ```bash
 perspective --mlx                # enter REPL with MLX pre-selected
 perspective --fm --tools         # enter REPL with FM + tools enabled
+perspective --fm --adapter ~/my-adapter.fmadapter --prompt "Hello"
 ```
 
 ### Interactive REPL
@@ -114,6 +116,16 @@ Type messages to chat. Use slash commands to control the CLI:
 | `/temperature <n>` | Set temperature (FM: 0.0-1.0, MLX: 0.0-2.0, default: 0.7) |
 | `/stream` | Toggle streaming (FM only) |
 | `/reset` | Reset conversation |
+
+### Adapter Commands
+
+Load custom-trained Foundation Models adapters (`.fmadapter` files):
+
+| Command | Description |
+|---------|-------------|
+| `/adapter <path>` | Load a `.fmadapter` file (FM only) |
+| `/adapter` | Show currently loaded adapter |
+| `/adapter clear` | Remove loaded adapter and revert to default model |
 
 ### Tool Commands
 
